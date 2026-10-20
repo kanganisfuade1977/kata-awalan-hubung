@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lomba Renang Kata dan Kalimat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #e0f2fe; /* Light blue background */
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+        h1, h2, h3, .font-heading {
+            font-family: 'Fredoka One', cursive;
+        }
+        
+        /* Animasi Air dan Kolam */
+        .pool-bg {
+            background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        .water-ripple {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            animation: ripple 3s infinite linear;
+            pointer-events: none;
+        }
+        @keyframes ripple {
+            0% { transform: scale(0); opacity: 0.5; }
+            100% { transform: scale(3); opacity: 0; }
+        }
+
+        /* Animasi Avatar */
+        .avatar-container {
+            transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: absolute;
+        }
+        .swim-anim {
+            animation: bobbing 1s infinite alternate ease-in-out;
+        }
+        @keyframes bobbing {
+            0% { transform: translateY(0) rotate(0deg); }
+            100% { transform: translateY(-5px) rotate(2deg); }
+        }
+        .sink-anim {
+            animation: sink 1.5s forwards ease-in-out;
+        }
+        @keyframes sink {
+            0% { transform: translateY(0); opacity: 1; }
+            50% { transform: translateY(20px) scale(0.9); opacity: 0.7; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        
+        /* Splash effect */
+        .splash {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: radial-gradient(circle, white 20%, transparent 60%);
+            border-radius: 50%;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .splash-anim {
+            animation: splashing 0.6s ease-out forwards;
+        }
+        @keyframes splashing {
+            0% { transform: scale(0.5) translateY(0); opacity: 1; }
+            100% { transform: scale(2) translateY(-20px); opacity: 0; }
+        }
+
+        /* Bubble effect */
+        .bubble {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        .bubble-anim {
+            animation: bubbling 1s ease-in forwards;
+        }
+        @keyframes bubbling {
+            0% { transform: translateY(0) scale(1); opacity: 0.8; }
+            100% { transform: translateY(-40px) scale(1.5); opacity: 0; }
+        }
+
+        /* UI Elements */
+        .btn-custom {
+            transition: transform 0.1s, box-shadow 0.1s;
+            box-shadow: 0 4px 0px rgba(0,0,0,0.2);
+        }
+        .btn-custom:active {
+            transform: translateY(4px);
+            box-shadow: 0 0px 0px rgba(0,0,0,0.2);
+        }
+        
+        .panel-p1 { border: 4px solid #3b82f6; }
+        .panel-p2 { border: 4px solid #f97316; }
+
+        /* Confetti */
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            z-index: 100;
+            pointer-events: none;
+            animation: fall 3s linear infinite;
+        }
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); }
+        }
+        
+        #game-area { display: none; }
+        #result-screen { display: none; }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden text-gray-800">
+
+    <script>
+        // Simple Web Audio API for self-contained sounds
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        let soundEnabled = true;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playTone(freq, type, duration, vol=0.1) {
+            if (!soundEnabled) return;
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const soundEffects = {
+            click: () => playTone(600, 'sine', 0.1),
+            correct: () => {
+                playTone(400, 'sine', 0.1);
+                setTimeout(() => playTone(600, 'sine', 0.2), 100);
+                setTimeout(() => playTone(800, 'sine', 0.3), 200);
+            },
+            wrong: () => {
+                playTone(300, 'sawtooth', 0.2);
+                setTimeout(() => playTone(200, 'sawtooth', 0.3), 150);
+            },
+            whistle: () => {
+                playTone(1200, 'sine', 0.5, 0.2);
+                setTimeout(() => playTone(1200, 'sine', 0.8, 0.2), 600);
+            },
+            applause: () => {
+                if (!soundEnabled) return;
+                initAudio();
+                const bufferSize = audioCtx.sampleRate * 4; // 4 detik suara riuh tepuk tangan
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1; // White noise
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                
+                // Filter untuk membuatnya terdengar seperti kerumunan (applause)
+                const bandpass = audioCtx.createBiquadFilter();
+                bandpass.type = 'bandpass';
+                bandpass.frequency.value = 1000;
+                bandpass.Q.value = 0.5;
+                
+                // Pengaturan volume memudar (fade in & fade out)
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.8, audioCtx.currentTime + 0.5);
+                gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 2.5);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 4);
+                
+                noise.connect(bandpass);
+                bandpass.connect(gain);
+                gain.connect(audioCtx.destination);
+                noise.start();
+                noise.stop(audioCtx.currentTime + 4);
+            },
+            win: () => {
+                [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+                    setTimeout(() => playTone(freq, 'square', 0.2, 0.05), i * 150);
+                });
+                setTimeout(() => playTone(1046.50, 'square', 0.6, 0.05), 600);
+                // Memutar suara tepuk tangan meriah
+                setTimeout(() => soundEffects.applause(), 200);
+            }
+        };
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById('sound-icon').innerText = soundEnabled ? '🔊' : '🔇';
+            if(soundEnabled) soundEffects.click();
+        }
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+    </script>
+
+    <div class="absolute top-2 right-2 z-50 flex gap-2">
+        <button onclick="toggleSound()" class="bg-white p-2 rounded-full shadow-md btn-custom text-xl" title="Suara">
+            <span id="sound-icon">🔊</span>
+        </button>
+        <button onclick="toggleFullscreen()" class="bg-white p-2 rounded-full shadow-md btn-custom text-xl" title="Layar Penuh">
+            🔲
+        </button>
+        <button onclick="showMenu()" class="bg-white p-2 rounded-full shadow-md btn-custom text-xl" title="Kembali ke Menu">
+            🏠
+        </button>
+    </div>
+
+    <div id="main-menu" class="h-full flex flex-col items-center justify-center bg-blue-50 relative p-4">
+        <!-- Dekorasi Background -->
+        <div class="absolute top-10 left-10 text-6xl opacity-20">☁️</div>
+        <div class="absolute top-20 right-20 text-6xl opacity-20">☁️</div>
+        <div class="absolute bottom-10 left-20 text-6xl opacity-20">🌴</div>
+        
+        <h1 class="text-4xl md:text-5xl lg:text-6xl text-center text-blue-600 mb-2 drop-shadow-md">🏊 Lomba Renang 🏊</h1>
+        <h2 class="text-2xl md:text-3xl text-center text-orange-500 mb-8 font-heading">Kata & Kalimat (Kelas 4 SD)</h2>
+
+        <div class="bg-white p-6 md:p-8 rounded-3xl shadow-xl w-full max-w-2xl border-4 border-blue-200 z-10">
+            <div class="flex flex-col md:flex-row gap-6 mb-6">
+                <!-- Input Pemain 1 -->
+                <div class="flex-1 bg-blue-100 p-4 rounded-xl border-2 border-blue-300">
+                    <h3 class="text-blue-700 text-xl mb-2 text-center">Pemain 1 (Biru)</h3>
+                    <input type="text" id="p1-name" placeholder="Nama P1 (Cth: Budi)" class="w-full p-2 rounded-lg border-2 border-blue-400 focus:outline-none focus:border-blue-600 text-center font-bold mb-3">
+                    <p class="text-center text-sm text-blue-800 font-bold mb-2">Pilih Avatar:</p>
+                    <div class="flex justify-center gap-4">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="p1-avatar" value="boy" class="hidden peer" checked>
+                            <div class="text-4xl p-2 rounded-xl bg-white border-4 border-transparent peer-checked:border-blue-500 peer-checked:bg-blue-200 transition-all shadow-sm">👦🏻</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="p1-avatar" value="girl" class="hidden peer">
+                            <div class="text-4xl p-2 rounded-xl bg-white border-4 border-transparent peer-checked:border-blue-500 peer-checked:bg-blue-200 transition-all shadow-sm">👧🏽</div>
+                        </label>
+                    </div>
+                </div>
+                <!-- Input Pemain 2 -->
+                <div class="flex-1 bg-orange-100 p-4 rounded-xl border-2 border-orange-300">
+                    <h3 class="text-orange-700 text-xl mb-2 text-center">Pemain 2 (Oranye)</h3>
+                    <input type="text" id="p2-name" placeholder="Nama P2 (Cth: Siti)" class="w-full p-2 rounded-lg border-2 border-orange-400 focus:outline-none focus:border-orange-600 text-center font-bold mb-3">
+                    <p class="text-center text-sm text-orange-800 font-bold mb-2">Pilih Avatar:</p>
+                    <div class="flex justify-center gap-4">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="p2-avatar" value="boy" class="hidden peer">
+                            <div class="text-4xl p-2 rounded-xl bg-white border-4 border-transparent peer-checked:border-orange-500 peer-checked:bg-orange-200 transition-all shadow-sm">👦🏻</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="p2-avatar" value="girl" class="hidden peer" checked>
+                            <div class="text-4xl p-2 rounded-xl bg-white border-4 border-transparent peer-checked:border-orange-500 peer-checked:bg-orange-200 transition-all shadow-sm">👧🏽</div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <h3 class="text-center text-lg font-bold mb-3">Pilih Level Kesulitan:</h3>
+                <div class="flex justify-center gap-2 md:gap-4 flex-wrap">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="level" value="1" class="hidden peer" checked>
+                        <div class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold peer-checked:bg-green-500 peer-checked:text-white btn-custom transition-colors border-2 border-transparent peer-checked:border-green-700">
+                            ⭐ Level 1 (Mudah)
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="level" value="2" class="hidden peer">
+                        <div class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold peer-checked:bg-yellow-500 peer-checked:text-white btn-custom transition-colors border-2 border-transparent peer-checked:border-yellow-700">
+                            ⭐⭐ Level 2 (Sedang)
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="level" value="3" class="hidden peer">
+                        <div class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold peer-checked:bg-red-500 peer-checked:text-white btn-custom transition-colors border-2 border-transparent peer-checked:border-red-700">
+                            ⭐⭐⭐ Level 3 (Sulit)
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <button onclick="startGame()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-heading text-2xl py-4 rounded-xl btn-custom border-b-4 border-blue-700">
+                MULAI LOMBA! 🏁
+            </button>
+        </div>
+    </div>
+
+    <div id="game-area" class="h-full w-full flex flex-col relative">
+        
+        <!-- Area Kolam Renang (Atas) -->
+        <div class="h-1/3 w-full pool-bg border-b-4 border-blue-800 flex relative" id="pool-container">
+            <!-- Garis Start & Finish -->
+            <div class="absolute left-0 h-full w-12 bg-white/20 border-r-4 border-white/50 z-0 flex flex-col justify-center items-center">
+                <span class="transform -rotate-90 text-white font-bold tracking-widest">START</span>
+            </div>
+            <div class="absolute right-0 h-full w-12 bg-yellow-400/50 border-l-4 border-yellow-300 z-0 flex flex-col justify-center items-center">
+                <span class="transform -rotate-90 text-white font-bold tracking-widest">FINIS</span>
+            </div>
+
+            <!-- 1 Jalur Renang untuk Berdua -->
+            <div class="h-full w-full relative flex px-14" id="single-lane">
+                <!-- Avatar Pemain 1 (Berada sedikit di atas) -->
+                <div id="avatar-p1" class="avatar-container swim-anim z-20" style="left: 0%; top: 15%;">
+                    <div id="avatar-svg-p1"></div>
+                    <div id="name-tag-p1" class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded font-bold whitespace-nowrap shadow border border-white/50">P1</div>
+                </div>
+                
+                <!-- Avatar Pemain 2 (Berada sedikit di bawah) -->
+                <div id="avatar-p2" class="avatar-container swim-anim z-10" style="left: 0%; bottom: 15%;">
+                    <div id="avatar-svg-p2"></div>
+                    <div id="name-tag-p2" class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-orange-600 text-white text-xs px-2 py-0.5 rounded font-bold whitespace-nowrap shadow border border-white/50">P2</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Area Soal (Bawah) -->
+        <div class="h-2/3 w-full flex flex-col md:flex-row bg-white">
+            
+            <!-- Panel Pemain 1 -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full p-2 md:p-4 panel-p1 flex flex-col bg-blue-50 relative">
+                <!-- Header Status -->
+                <div class="flex justify-between items-center bg-blue-200 p-2 rounded-lg mb-2">
+                    <span class="font-bold text-blue-800" id="ui-name-p1">Pemain 1</span>
+                    <div class="flex gap-4">
+                        <span class="text-sm bg-white px-2 py-1 rounded text-blue-700">Soal: <span id="ui-qnum-p1">1/10</span></span>
+                        <span class="text-sm bg-white px-2 py-1 rounded text-green-600 font-bold">Skor: <span id="ui-score-p1">0</span></span>
+                    </div>
+                </div>
+                
+                <!-- Area Soal -->
+                <div class="flex-1 flex flex-col overflow-y-auto" id="q-area-p1">
+                    <div class="text-center font-bold text-lg md:text-xl mb-4 text-gray-800" id="question-text-p1">Memuat soal...</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-auto" id="options-p1">
+                        <!-- Options injected here -->
+                    </div>
+                </div>
+
+                <!-- Overlay Penjelasan -->
+                <div id="explanation-p1" class="absolute inset-0 bg-blue-900/90 z-20 flex flex-col items-center justify-center p-6 text-white hidden rounded-lg m-1">
+                    <h3 id="ex-title-p1" class="text-3xl font-heading mb-2">Hebat!</h3>
+                    <p id="ex-text-p1" class="text-center mb-6 text-lg">Penjelasan ada di sini.</p>
+                    <button onclick="nextQuestion(1)" class="bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 px-6 rounded-xl btn-custom border-b-4 border-blue-700 w-full max-w-xs">
+                        Lanjut! ➡️
+                    </button>
+                </div>
+            </div>
+
+            <!-- Panel Pemain 2 -->
+            <div class="w-full md:w-1/2 h-1/2 md:h-full p-2 md:p-4 panel-p2 flex flex-col bg-orange-50 relative border-t-4 md:border-t-0 md:border-l-4 border-gray-300">
+                <!-- Header Status -->
+                <div class="flex justify-between items-center bg-orange-200 p-2 rounded-lg mb-2">
+                    <span class="font-bold text-orange-800" id="ui-name-p2">Pemain 2</span>
+                    <div class="flex gap-4">
+                        <span class="text-sm bg-white px-2 py-1 rounded text-orange-700">Soal: <span id="ui-qnum-p2">1/10</span></span>
+                        <span class="text-sm bg-white px-2 py-1 rounded text-green-600 font-bold">Skor: <span id="ui-score-p2">0</span></span>
+                    </div>
+                </div>
+                
+                <!-- Area Soal -->
+                <div class="flex-1 flex flex-col overflow-y-auto" id="q-area-p2">
+                    <div class="text-center font-bold text-lg md:text-xl mb-4 text-gray-800" id="question-text-p2">Memuat soal...</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-auto" id="options-p2">
+                        <!-- Options injected here -->
+                    </div>
+                </div>
+
+                <!-- Overlay Penjelasan -->
+                <div id="explanation-p2" class="absolute inset-0 bg-orange-900/90 z-20 flex flex-col items-center justify-center p-6 text-white hidden rounded-lg m-1">
+                    <h3 id="ex-title-p2" class="text-3xl font-heading mb-2">Hebat!</h3>
+                    <p id="ex-text-p2" class="text-center mb-6 text-lg">Penjelasan ada di sini.</p>
+                    <button onclick="nextQuestion(2)" class="bg-orange-500 hover:bg-orange-400 text-white font-bold py-3 px-6 rounded-xl btn-custom border-b-4 border-orange-700 w-full max-w-xs">
+                        Lanjut! ➡️
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="result-screen" class="h-full w-full bg-blue-900 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div id="confetti-container" class="absolute inset-0 pointer-events-none"></div>
+        
+        <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-3xl w-full text-center z-10">
+            <h1 class="text-4xl md:text-5xl font-heading text-yellow-500 mb-2 drop-shadow" id="winner-title">PENGUMUMAN JUARA!</h1>
+            <p class="text-xl text-gray-600 mb-8" id="winner-subtitle">Kalian semua hebat telah menyelesaikan lomba!</p>
+            
+            <div class="flex flex-col md:flex-row justify-center gap-8 mb-8">
+                <!-- Hasil P1 -->
+                <div class="bg-blue-50 p-6 rounded-2xl border-4 border-blue-400 flex-1 relative">
+                    <div class="absolute -top-8 left-1/2 transform -translate-x-1/2 text-5xl bg-white rounded-full p-2 border-4 border-blue-400">👦🏻</div>
+                    <h2 class="text-2xl font-bold mt-4 text-blue-800" id="res-name-p1">Pemain 1</h2>
+                    <div class="text-4xl font-heading text-blue-600 my-2"><span id="res-score-p1">0</span> PTS</div>
+                    <p class="text-green-600 font-bold">Benar: <span id="res-correct-p1">0</span></p>
+                    <p class="text-red-500 font-bold">Salah: <span id="res-wrong-p1">0</span></p>
+                </div>
+                
+                <!-- Hasil P2 -->
+                <div class="bg-orange-50 p-6 rounded-2xl border-4 border-orange-400 flex-1 relative">
+                    <div class="absolute -top-8 left-1/2 transform -translate-x-1/2 text-5xl bg-white rounded-full p-2 border-4 border-orange-400">👧🏽</div>
+                    <h2 class="text-2xl font-bold mt-4 text-orange-800" id="res-name-p2">Pemain 2</h2>
+                    <div class="text-4xl font-heading text-orange-600 my-2"><span id="res-score-p2">0</span> PTS</div>
+                    <p class="text-green-600 font-bold">Benar: <span id="res-correct-p2">0</span></p>
+                    <p class="text-red-500 font-bold">Salah: <span id="res-wrong-p2">0</span></p>
+                </div>
+            </div>
+
+            <p class="text-lg font-bold text-gray-700 italic mb-8">"Terus belajar, terus berlatih, dan jangan pernah menyerah!"</p>
+            
+            <div class="flex justify-center gap-4">
+                <button onclick="showMenu()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-xl btn-custom border-b-4 border-gray-700">
+                    Menu Utama
+                </button>
+                <button onclick="startGame()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-xl btn-custom border-b-4 border-green-700">
+                    Main Lagi! 🔄
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Database Soal
+        const questionsDB = {
+            // Level 1: Menjodohkan Kata Dasar & Awalan (Diformat Multiple Choice bergambar/kartu besar)
+            level1: [
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: SAPU", options: ["menyapu", "mensapu", "memsapu", "bersapu"], answer: 0, exp: "Awalan me- bertemu huruf 's' akan melebur menjadi 'meny-' (menyapu)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: BACA", options: ["mebaca", "membaca", "menbaca", "berbaca"], answer: 1, exp: "Awalan me- bertemu huruf 'b' akan berubah menjadi 'mem-' (membaca)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: TULIS", options: ["mentulis", "metulis", "menulis", "bertulis"], answer: 2, exp: "Awalan me- bertemu huruf 't' akan melebur menjadi 'men-' (menulis)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: GAMBAR", options: ["megambar", "menggambar", "mengambar", "bergambar"], answer: 1, exp: "Awalan me- bertemu huruf 'g' akan berubah menjadi 'meng-' (menggambar)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: RENANG", options: ["merenang", "berenang", "memrenang", "berenangs"], answer: 1, exp: "Kata dasar renang sering menggunakan awalan 'ber-' menjadi berenang." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: MAIN", options: ["memain", "bermain", "menmain", "pemain"], answer: 1, exp: "Kata dasar main sering menggunakan awalan 'ber-' menjadi bermain." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: CUCI", options: ["mencuci", "mecuci", "menycuci", "bercuci"], answer: 0, exp: "Awalan me- bertemu huruf 'c' akan berubah menjadi 'men-' (mencuci)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: JUAL", options: ["mejual", "menjual", "memjual", "berjual"], answer: 1, exp: "Awalan me- bertemu huruf 'j' akan berubah menjadi 'men-' (menjual)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: KIRA", options: ["mengira", "mekira", "menkira", "berkira"], answer: 0, exp: "Awalan me- bertemu huruf 'k' akan melebur menjadi 'meng-' (mengira)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: LARI", options: ["melari", "berlari", "menglari", "menlari"], answer: 1, exp: "Kata dasar lari menggunakan awalan 'ber-' menjadi berlari." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: BAWA", options: ["mebawa", "membawa", "menbawa", "berbawa"], answer: 1, exp: "Awalan me- bertemu huruf 'b' menjadi 'mem-' (membawa)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: PAKAI", options: ["mepakai", "mempakai", "memakai", "berpakai"], answer: 2, exp: "Awalan me- bertemu huruf 'p' akan melebur menjadi 'mem-' (memakai)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: CARI", options: ["mecari", "mencari", "memcari", "bercari"], answer: 1, exp: "Awalan me- bertemu huruf 'c' menjadi 'men-' (mencari)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: TARIK", options: ["metarik", "menarik", "mentarik", "bertarik"], answer: 1, exp: "Awalan me- bertemu huruf 't' melebur menjadi 'men-' (menarik)." },
+                { q: "Pilih kata penghubung yang tepat: Ayah membaca koran ... minum kopi.", options: ["karena", "tetapi", "dan", "atau"], answer: 2, exp: "Kata 'dan' digunakan untuk menggabungkan kegiatan yang dilakukan bersamaan." },
+                { q: "Pilih kata penghubung yang tepat: Kamu mau buah apel ... mangga?", options: ["dan", "atau", "tetapi", "karena"], answer: 1, exp: "Kata 'atau' digunakan untuk menyatakan sebuah pilihan." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: TOLONG", options: ["metolong", "mentolong", "menolong", "bertolong"], answer: 2, exp: "Awalan me- bertemu huruf 't' melebur menjadi 'men-' (menolong)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: JAGA", options: ["menjaga", "mejaga", "memjaga", "berjaga"], answer: 0, exp: "Awalan me- bertemu huruf 'j' menjadi 'men-' (menjaga)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: LIHAT", options: ["meliat", "melihat", "menlihat", "berlihat"], answer: 1, exp: "Awalan me- bertemu huruf 'l' menjadi 'me-' (melihat)." },
+                { q: "Pilih kata berawalan yang tepat untuk kata dasar: BUAT", options: ["mebuat", "membuat", "menbuat", "berbuat"], answer: 1, exp: "Awalan me- bertemu huruf 'b' menjadi 'mem-' (membuat)." }
+            ],
+            // Level 2: Pilihan Ganda Sedang (Kalimat Pendek & Penghubung Dasar)
+            level2: [
+                { q: "Ibu sedang ... sayuran di dapur.", options: ["memasak", "bermain", "berenang", "berlari"], answer: 0, exp: "Kata yang tepat adalah 'memasak', artinya mengolah makanan." },
+                { q: "Rani ingin membaca buku, ... adiknya ingin menggambar.", options: ["karena", "dan", "tetapi", "atau"], answer: 2, exp: "Kata 'tetapi' digunakan untuk menunjukkan perbedaan atau pertentangan." },
+                { q: "Siti membawa payung ... langit mendung.", options: ["dan", "atau", "karena", "tetapi"], answer: 2, exp: "Kata 'karena' digunakan untuk menjelaskan sebab suatu kejadian." },
+                { q: "Budi ingin bermain bola, ... hujan turun.", options: ["dan", "atau", "karena", "tetapi"], answer: 3, exp: "Kata 'tetapi' tepat karena ada pertentangan (ingin main, tapi hujan)." },
+                { q: "Kita bisa pergi ke pantai ... ke pegunungan saat liburan.", options: ["tetapi", "atau", "dan", "karena"], answer: 1, exp: "Kata 'atau' menunjukkan sebuah pilihan tempat liburan." },
+                { q: "Ayah ... mobil di halaman rumah.", options: ["mencuci", "menyapu", "membaca", "memasak"], answer: 0, exp: "Kata kerja yang tepat untuk mobil di halaman adalah mencuci." },
+                { q: "Kakak ... adik belajar matematika.", options: ["menggambar", "mengajari", "menari", "bernyanyi"], answer: 1, exp: "Kata yang tepat adalah mengajari (memberi pelajaran)." },
+                { q: "Dodi terjatuh dari sepeda ... ia menangis.", options: ["lalu", "atau", "tetapi", "karena"], answer: 0, exp: "Kata 'lalu' atau 'sehingga' (di sini bisa pakai 'lalu' / 'dan') menunjukkan urutan kejadian." },
+                { q: "Petani ... padi di sawah.", options: ["menjual", "menanam", "memasak", "mencuci"], answer: 1, exp: "Petani bekerja menanam padi di sawah." },
+                { q: "Saya tidak pergi ke sekolah ... sedang sakit.", options: ["tetapi", "dan", "atau", "karena"], answer: 3, exp: "Kata 'karena' menjelaskan alasan mengapa tidak pergi ke sekolah." },
+                { q: "Anak-anak ... gembira di taman bermain.", options: ["bermain", "membaca", "tidur", "menangis"], answer: 0, exp: "Aktivitas yang umum dilakukan dengan gembira di taman adalah bermain." },
+                { q: "Paman ... burung di dalam sangkar.", options: ["memelihara", "menanam", "menggambar", "berenang"], answer: 0, exp: "Kita memelihara hewan peliharaan seperti burung." },
+                { q: "Siswa kelas 4 ... lagu kebangsaan saat upacara.", options: ["menyanyikan", "menulis", "menggambar", "berlari"], answer: 0, exp: "Saat upacara, siswa menyanyikan lagu kebangsaan." },
+                { q: "Kamu mau pensil warna merah ... biru?", options: ["dan", "tetapi", "karena", "atau"], answer: 3, exp: "Menanyakan pilihan menggunakan kata 'atau'." },
+                { q: "Lampu lalu lintas berwarna merah, ... kendaraan harus berhenti.", options: ["karena", "tetapi", "maka", "atau"], answer: 2, exp: "Kata 'maka' atau 'sehingga' menunjukkan akibat." },
+                { q: "Nelayan ... ikan di laut menggunakan jaring.", options: ["mencari", "menanam", "membeli", "membuang"], answer: 0, exp: "Nelayan bekerja mencari atau menangkap ikan." },
+                { q: "Ibu pergi ke pasar ... membeli sayur-sayuran.", options: ["tetapi", "atau", "untuk", "karena"], answer: 2, exp: "Kata 'untuk' menjelaskan tujuan pergi ke pasar." },
+                { q: "Rumah itu besar, ... halamannya sangat sempit.", options: ["karena", "dan", "atau", "tetapi"], answer: 3, exp: "Menunjukkan keadaan yang bertolak belakang (besar tapi sempit)." },
+                { q: "Kakak rajin menabung ... ingin membeli sepeda baru.", options: ["tetapi", "karena", "atau", "dan"], answer: 1, exp: "Alasan rajin menabung adalah karena ingin beli sepeda." },
+                { q: "Kucing itu ... ikan curian dengan cepat.", options: ["membawa", "memasak", "menanam", "menulis"], answer: 0, exp: "Kucing membawa lari ikan." }
+            ],
+            // Level 3: Pilihan Ganda Sulit (Kalimat Panjang & Logika)
+            level3: [
+                { q: "Doni tetap berangkat ke sekolah ... hujan turun sangat deras.", options: ["dan", "atau", "tetapi", "meskipun"], answer: 3, exp: "Kata 'meskipun/walaupun' menunjukkan pertentangan keadaan yang kuat." },
+                { q: "Adik ... gambar pemandangan, sedangkan kakak membaca buku.", options: ["menggambar", "gambar", "digambar", "tergambar"], answer: 0, exp: "Membutuhkan kata kerja aktif. 'menggambar' adalah bentuk aktif yang tepat." },
+                { q: "Pilih kalimat yang paling tepat penulisan awalan me- nya:", options: ["Ibu sedang mensapu lantai.", "Budi melempar bola dengan kuat.", "Ayah menbaca koran di pagi hari.", "Siti mecuci piring setelah makan."], answer: 1, exp: "Me+lempar = melempar. Mensapu(salah)->menyapu. Menbaca(salah)->membaca. Mecuci(salah)->mencuci." },
+                { q: "Penggunaan kata penghubung yang SALAH terdapat pada kalimat...", options: ["Rina pintar menyanyi dan menari.", "Kamu pilih buku cerita atau komik?", "Budi rajin belajar karena ia malas.", "Siti pandai berhitung, tetapi kurang teliti."], answer: 2, exp: "Alasan 'karena ia malas' tidak masuk akal untuk akibat 'rajin belajar'." },
+                { q: "Kata dasar 'kunci' jika diberi awalan 'me-' menjadi kalimat yang tepat adalah...", options: ["Ayah mengkunci pintu pagar.", "Ibu mekunci lemari pakaian.", "Kakak mengunci pintu rumah.", "Adik menyunci laci mejanya."], answer: 2, exp: "Me- + kunci (huruf k melebur) menjadi mengunci." },
+                { q: "Anton suka makan buah apel, ... Caca lebih suka buah jeruk.", options: ["karena", "sedangkan", "sehingga", "atau"], answer: 1, exp: "Kata 'sedangkan' digunakan untuk membandingkan dua subjek yang berbeda." },
+                { q: "Petugas kebersihan ... sampah yang berserakan di taman kota.", options: ["mengumpul", "mengumpulkan", "kumpulkan", "terkumpul"], answer: 1, exp: "Kata kerja aktif transitif yang tepat adalah mengumpulkan (me+kumpul+kan)." },
+                { q: "Kalimat majemuk yang menggunakan kata penghubung 'sebab/karena' dengan tepat adalah...", options: ["Hujan turun karena jalanan menjadi basah.", "Bunga itu layu karena tidak pernah disiram.", "Dia menangis karena sedang tertawa.", "Burung terbang karena memiliki sirip."], answer: 1, exp: "Layu (akibat) karena tidak disiram (sebab)." },
+                { q: "Kata dasar 'pesona' jika diberi awalan 'me-' menjadi...", options: ["memesona", "mempesona", "mepesona", "menpesona"], answer: 0, exp: "Me- + pesona (huruf p melebur) menjadi memesona (baku sesuai KBBI)." },
+                { q: "Pengendara sepeda motor harus ... peraturan lalu lintas.", options: ["mentaati", "mntaati", "menaati", "metaati"], answer: 2, exp: "Me- + taat (huruf t melebur) menjadi menaati." },
+                { q: "Pertandingan sepak bola itu dihentikan sementara ... terjadi hujan lebat disertai petir.", options: ["sehingga", "meskipun", "karena", "tetapi"], answer: 2, exp: "Menjelaskan sebab dihentikannya pertandingan." },
+                { q: "Reni ... pengalaman liburannya kepada teman-teman di depan kelas.", options: ["cerita", "bercerita", "menceritakan", "diceritakan"], answer: 2, exp: "Membutuhkan kata kerja aktif transitif (ada objek 'pengalaman'): menceritakan." },
+                { q: "Pilih kalimat dengan ejaan awalan yang BENAR:", options: ["Polisi menilang pelanggar lalu lintas.", "Dokter memperiksa pasien.", "Petani mentanam padi.", "Guru menjelas materi."], answer: 0, exp: "Me+tilang=menilang(benar). Memperiksa(salah)->memeriksa. Mentanam(salah)->menanam. Menjelas(salah)->menjelaskan." },
+                { q: "Ibu ... bawang merah dan bawang putih untuk bumbu nasi goreng.", options: ["mengiris", "meiris", "meniris", "menyiris"], answer: 0, exp: "Me- + iris (huruf vokal) menjadi mengiris." },
+                { q: "Semua siswa wajib mengikuti upacara bendera ... siswa yang sedang sakit.", options: ["termasuk", "kecuali", "dan", "atau"], answer: 1, exp: "Kata 'kecuali' digunakan untuk memberikan pengecualian/pengecualian." },
+                { q: "Pendaki gunung itu terus berjalan ... cuaca sangat dingin.", options: ["walaupun", "karena", "sehingga", "dan"], answer: 0, exp: "Kata 'walaupun/meskipun' menunjukkan keadaan yang berlawanan." },
+                { q: "Kata dasar 'sukses' jika mendapat awalan 'me-' dan akhiran '-kan' menjadi...", options: ["mensukseskan", "menyuskeskan", "menyukseskan", "mesukseskan"], answer: 2, exp: "Me- + sukses (s melebur) + kan -> menyukseskan." },
+                { q: "Penduduk desa ... gotong royong membersihkan selokan agar tidak banjir.", options: ["lakukan", "melakukan", "dilakukan", "kelakuan"], answer: 1, exp: "Kata kerja aktif yang dilakukan penduduk adalah melakukan." },
+                { q: "Tanaman itu disiram setiap hari ... tumbuh subur dan cepat berbunga.", options: ["karena", "tetapi", "agar", "atau"], answer: 2, exp: "Kata 'agar/supaya' menunjukkan tujuan suatu tindakan." },
+                { q: "Ayah ... jam dinding yang rusak menggunakan obeng.", options: ["meperbaiki", "memperbaiki", "membaiki", "berbaiki"], answer: 1, exp: "Me- + perbaiki -> memperbaiki (p tidak luluh karena awalan per-)." }
+            ]
+        };
+
+        let gameState = {
+            level: 1,
+            maxQuestions: 10,
+            playing: false
+        };
+
+        let p1State = { name: "P1", score: 0, qIndex: 0, correct: 0, wrong: 0, questions: [], finished: false, lane: 1 };
+        let p2State = { name: "P2", score: 0, qIndex: 0, correct: 0, wrong: 0, questions: [], finished: false, lane: 2 };
+
+        function getAvatarSVG(type, color) {
+            if (type === 'boy') {
+                return `<svg width="50" height="50" viewBox="0 0 100 100">
+                    <ellipse cx="50" cy="70" rx="40" ry="15" fill="${color}" opacity="0.8"/>
+                    <circle cx="50" cy="40" r="25" fill="#ffbda1"/>
+                    <rect x="30" y="30" width="40" height="15" rx="5" fill="#1e3a8a"/>
+                    <circle cx="40" cy="37" r="5" fill="#60a5fa"/>
+                    <circle cx="60" cy="37" r="5" fill="#60a5fa"/>
+                    <path d="M 40 50 Q 50 60 60 50" fill="none" stroke="#d97706" stroke-width="3" stroke-linecap="round"/>
+                    <path d="M 25 45 Q 10 50 20 70" fill="none" stroke="#ffbda1" stroke-width="8" stroke-linecap="round"/>
+                </svg>`;
+            } else {
+                return `<svg width="50" height="50" viewBox="0 0 100 100">
+                    <ellipse cx="50" cy="70" rx="40" ry="15" fill="${color}" opacity="0.8"/>
+                    <circle cx="50" cy="45" r="28" fill="#4a3018"/>
+                    <circle cx="50" cy="40" r="23" fill="#fbcfe8"/>
+                    <rect x="32" y="32" width="36" height="12" rx="6" fill="#c026d3"/>
+                    <circle cx="41" cy="38" r="4" fill="#f0abfc"/>
+                    <circle cx="59" cy="38" r="4" fill="#f0abfc"/>
+                    <path d="M 42 50 Q 50 58 58 50" fill="none" stroke="#db2777" stroke-width="3" stroke-linecap="round"/>
+                    <path d="M 75 45 Q 90 50 80 70" fill="none" stroke="#fbcfe8" stroke-width="8" stroke-linecap="round"/>
+                </svg>`;
+            }
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function showMenu() {
+            document.getElementById('main-menu').style.display = 'flex';
+            document.getElementById('game-area').style.display = 'none';
+            document.getElementById('result-screen').style.display = 'none';
+            gameState.playing = false;
+        }
+
+        function startGame() {
+            initAudio(); // Initialize audio context on user interaction
+            soundEffects.whistle();
+
+            // Setup Players
+            p1State.name = document.getElementById('p1-name').value || "Pemain Biru";
+            p2State.name = document.getElementById('p2-name').value || "Pemain Oranye";
+            
+            // Ambil pilihan avatar dan atur gambar
+            const p1Avatar = document.querySelector('input[name="p1-avatar"]:checked').value;
+            const p2Avatar = document.querySelector('input[name="p2-avatar"]:checked').value;
+            document.getElementById('avatar-svg-p1').innerHTML = getAvatarSVG(p1Avatar, '#3b82f6');
+            document.getElementById('avatar-svg-p2').innerHTML = getAvatarSVG(p2Avatar, '#f97316');
+            
+            gameState.level = parseInt(document.querySelector('input[name="level"]:checked').value);
+            let pool = [...questionsDB['level' + gameState.level]];
+            
+            // Ensure enough questions, shuffle, and split so they get different questions
+            shuffleArray(pool);
+            p1State.questions = pool.slice(0, gameState.maxQuestions);
+            p2State.questions = pool.slice(gameState.maxQuestions, gameState.maxQuestions * 2);
+
+            // Fallback if pool is too small (shouldn't happen with 20 qs)
+            if(p2State.questions.length < gameState.maxQuestions) {
+                p2State.questions = shuffleArray([...questionsDB['level' + gameState.level]]).slice(0, gameState.maxQuestions);
+            }
+
+            // Reset States
+            resetPlayerState(p1State);
+            resetPlayerState(p2State);
+
+            // Update UI Initial
+            updateUI(1);
+            updateUI(2);
+            updateAvatarPosition(1);
+            updateAvatarPosition(2);
+
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('result-screen').style.display = 'none';
+            document.getElementById('game-area').style.display = 'flex';
+            
+            gameState.playing = true;
+
+            // Load first questions
+            renderQuestion(1);
+            renderQuestion(2);
+        }
+
+        function resetPlayerState(state) {
+            state.score = 0;
+            state.qIndex = 0;
+            state.correct = 0;
+            state.wrong = 0;
+            state.finished = false;
+            document.getElementById(`explanation-p${state.lane}`).classList.add('hidden');
+        }
+
+        function updateUI(pNum) {
+            const state = pNum === 1 ? p1State : p2State;
+            document.getElementById(`ui-name-p${pNum}`).innerText = state.name;
+            document.getElementById(`name-tag-p${pNum}`).innerText = state.name;
+            document.getElementById(`ui-qnum-p${pNum}`).innerText = `${Math.min(state.qIndex + 1, gameState.maxQuestions)}/${gameState.maxQuestions}`;
+            document.getElementById(`ui-score-p${pNum}`).innerText = state.score;
+        }
+
+        function renderQuestion(pNum) {
+            const state = pNum === 1 ? p1State : p2State;
+            const qContainer = document.getElementById(`q-area-p${pNum}`);
+            const textEl = document.getElementById(`question-text-p${pNum}`);
+            const optionsEl = document.getElementById(`options-p${pNum}`);
+            
+            if (state.qIndex >= gameState.maxQuestions) {
+                state.finished = true;
+                textEl.innerHTML = "🎉 Selesai! Menunggu pemain lain... 🎉";
+                optionsEl.innerHTML = "";
+                checkGameEnd();
+                return;
+            }
+
+            const qData = state.questions[state.qIndex];
+            textEl.innerText = qData.q;
+            optionsEl.innerHTML = "";
+
+            // Create buttons
+            const colorClass = pNum === 1 ? 'bg-blue-100 hover:bg-blue-200 border-blue-400 text-blue-900' : 'bg-orange-100 hover:bg-orange-200 border-orange-400 text-orange-900';
+            
+            qData.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = `p-3 md:p-4 rounded-xl border-2 font-bold text-lg text-left btn-custom ${colorClass}`;
+                
+                // For level 1, make it look more like a card
+                if(gameState.level === 1) {
+                    btn.className = `p-4 rounded-2xl border-b-4 font-bold text-xl text-center btn-custom shadow-sm ${pNum === 1 ? 'bg-white border-blue-500 text-blue-700' : 'bg-white border-orange-500 text-orange-700'}`;
+                }
+
+                btn.innerText = `${String.fromCharCode(65 + index)}. ${opt}`;
+                btn.onclick = () => handleAnswer(pNum, index);
+                optionsEl.appendChild(btn);
+            });
+            
+            updateUI(pNum);
+        }
+
+        function handleAnswer(pNum, selectedIdx) {
+            const state = pNum === 1 ? p1State : p2State;
+            const qData = state.questions[state.qIndex];
+            const isCorrect = selectedIdx === qData.answer;
+
+            // Lock options
+            const optionsEl = document.getElementById(`options-p${pNum}`);
+            Array.from(optionsEl.children).forEach(btn => btn.disabled = true);
+
+            if (isCorrect) {
+                state.score += 10;
+                state.correct++;
+                soundEffects.correct();
+                animateAvatar(pNum, 'forward');
+                showExplanation(pNum, true, qData.exp);
+            } else {
+                state.wrong++;
+                soundEffects.wrong();
+                animateAvatar(pNum, 'sink');
+                showExplanation(pNum, false, qData.exp);
+            }
+            
+            updateUI(pNum);
+        }
+
+        function showExplanation(pNum, isCorrect, text) {
+            const exDiv = document.getElementById(`explanation-p${pNum}`);
+            const title = document.getElementById(`ex-title-p${pNum}`);
+            const desc = document.getElementById(`ex-text-p${pNum}`);
+            
+            exDiv.classList.remove('hidden', 'bg-blue-900/90', 'bg-orange-900/90', 'bg-green-600/90', 'bg-red-600/90');
+            
+            if (isCorrect) {
+                title.innerText = "HEBAT! 🎉";
+                exDiv.classList.add('bg-green-600/95');
+            } else {
+                title.innerText = "YUK, COBA LAGI! 💪";
+                exDiv.classList.add('bg-red-600/95');
+            }
+            
+            desc.innerText = text;
+        }
+
+        function nextQuestion(pNum) {
+            const state = pNum === 1 ? p1State : p2State;
+            document.getElementById(`explanation-p${pNum}`).classList.add('hidden');
+            state.qIndex++;
+            renderQuestion(pNum);
+        }
+
+        function updateAvatarPosition(pNum) {
+            const state = pNum === 1 ? p1State : p2State;
+            const avatar = document.getElementById(`avatar-p${pNum}`);
+            // Calculate percentage (max score is maxQuestions * 10)
+            const maxScore = gameState.maxQuestions * 10;
+            // Map score to 0% - 85% of container width so they don't clip out
+            let percentage = (state.score / maxScore) * 85; 
+            if(percentage > 85) percentage = 85;
+            avatar.style.left = `${percentage}%`;
+        }
+
+        function animateAvatar(pNum, action) {
+            const avatar = document.getElementById(`avatar-p${pNum}`);
+            const lane = document.getElementById(`single-lane`);
+            
+            if (action === 'forward') {
+                // Splash effect
+                const splash = document.createElement('div');
+                splash.className = 'splash splash-anim';
+                splash.style.left = avatar.style.left;
+                if (pNum === 1) {
+                    splash.style.top = '30%';
+                } else {
+                    splash.style.bottom = '30%';
+                }
+                lane.appendChild(splash);
+                setTimeout(() => splash.remove(), 600);
+                
+                // Move logic happens in updateAvatarPosition, we just call it
+                updateAvatarPosition(pNum);
+
+            } else if (action === 'sink') {
+                // Remove swim animation temporarily
+                avatar.classList.remove('swim-anim');
+                // Force reflow
+                void avatar.offsetWidth;
+                avatar.classList.add('sink-anim');
+                
+                // Bubbles
+                for(let i=0; i<3; i++) {
+                    setTimeout(() => {
+                        const bubble = document.createElement('div');
+                        bubble.className = 'bubble bubble-anim';
+                        // position near avatar head
+                        const currentLeft = parseFloat(avatar.style.left) || 0;
+                        bubble.style.left = `calc(${currentLeft}% + 25px)`; 
+                        if (pNum === 1) {
+                            bubble.style.top = '25%';
+                        } else {
+                            bubble.style.bottom = '35%';
+                        }
+                        lane.appendChild(bubble);
+                        setTimeout(() => bubble.remove(), 1000);
+                    }, i * 200);
+                }
+
+                // Restore swim after sink
+                setTimeout(() => {
+                    avatar.classList.remove('sink-anim');
+                    avatar.classList.add('swim-anim');
+                }, 1500);
+            }
+        }
+
+        function checkGameEnd() {
+            if (p1State.finished && p2State.finished) {
+                setTimeout(showResultScreen, 1000);
+            }
+        }
+
+        function showResultScreen() {
+            document.getElementById('game-area').style.display = 'none';
+            const resultScreen = document.getElementById('result-screen');
+            resultScreen.style.display = 'flex';
+            soundEffects.win();
+
+            // Populate P1 stats
+            document.getElementById('res-name-p1').innerText = p1State.name;
+            document.getElementById('res-score-p1').innerText = p1State.score;
+            document.getElementById('res-correct-p1').innerText = p1State.correct;
+            document.getElementById('res-wrong-p1').innerText = p1State.wrong;
+
+            // Populate P2 stats
+            document.getElementById('res-name-p2').innerText = p2State.name;
+            document.getElementById('res-score-p2').innerText = p2State.score;
+            document.getElementById('res-correct-p2').innerText = p2State.correct;
+            document.getElementById('res-wrong-p2').innerText = p2State.wrong;
+
+            const title = document.getElementById('winner-title');
+            if (p1State.score > p2State.score) {
+                title.innerText = `SELAMAT! PEMENANGNYA ADALAH ${p1State.name.toUpperCase()}! 🏆`;
+            } else if (p2State.score > p1State.score) {
+                title.innerText = `SELAMAT! PEMENANGNYA ADALAH ${p2State.name.toUpperCase()}! 🏆`;
+            } else {
+                title.innerText = `LUAR BIASA! KALIAN BERDUA JUARA BERSAMA! 🏆🏆`;
+            }
+
+            createConfetti();
+        }
+
+        function createConfetti() {
+            const container = document.getElementById('confetti-container');
+            container.innerHTML = '';
+            const colors = ['#fce18a', '#ff726d', '#b48def', '#f4306d', '#3b82f6', '#22c55e'];
+            
+            for (let i = 0; i < 100; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.top = -10 + 'px';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.animationDuration = (Math.random() * 3 + 2) + 's';
+                confetti.style.animationDelay = (Math.random() * 5) + 's';
+                container.appendChild(confetti);
+            }
+        }
+
+        // Initialize Menu on load
+        window.onload = () => {
+            showMenu();
+            // Background ambient animation
+            setInterval(() => {
+                if(gameState.playing) {
+                    const pool = document.getElementById('pool-container');
+                    const ripple = document.createElement('div');
+                    ripple.className = 'water-ripple';
+                    ripple.style.left = Math.random() * 100 + '%';
+                    ripple.style.top = Math.random() * 100 + '%';
+                    ripple.style.width = '20px';
+                    ripple.style.height = '20px';
+                    pool.appendChild(ripple);
+                    setTimeout(() => ripple.remove(), 3000);
+                }
+            }, 800);
+        };
+    </script>
+</body>
+</html>
